@@ -4,24 +4,31 @@ apply plugin: 'eclipse'
 apply plugin: 'groovy'
 apply plugin: 'maven'
 
-sourceCompatibility = 1.5
+sourceCompatibility = 1.7
 version = '1.0'
 
 repositories {
-    mavenCentral()
+    maven {
+        url isaFetchURL
+    }
 }
 
 jar {
     from {
-        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+    }
     manifest {
-        attributes 'Main-Class': 'com.isa.aroxHelper.AroxHelper'
+        attributes 'Main-Class': 'com.isa.application.DataMigrationApplication'
     }
 }
 
 dependencies {
-    compile 'org.apache.poi:poi:3.10-FINAL'
-    compile 'org.apache.poi:poi-ooxml:3.10-FINAL'
-    compile 'com.couchbase.client:couchbase-client:1.4.11'
-    compile 'com.couchbase.client:java-client:2.0.3'
+    compile 'com.couchbase.client:couchbase-client:' + couchbaseClientVersion,
+            'org.springframework:spring-core:' + springVersion,
+            'org.springframework:spring-aop:' + springVersion,
+            'org.springframework:spring-tx:' + springVersion,
+            'org.springframework.data:spring-data-couchbase:' + springDataCouchbaseVersion,
+            'org.slf4j:slf4j-log4j12:' + slf4jVersion,
+            'org.slf4j:slf4j-api:' + slf4jVersion,
+            'log4j:log4j:' + log4jVersion
 }
