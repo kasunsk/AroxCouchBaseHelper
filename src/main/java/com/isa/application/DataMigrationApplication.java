@@ -24,7 +24,10 @@ public class DataMigrationApplication {
         System.out.print("Enter the bucket password: ");
         String bucketPassword = reader.nextLine();
 
-        PackageMigration.packageDataMigration(couchbaseServerIp, bucketName, bucketPassword);
+        System.out.print("Enter ftp url ");
+        String ftpUrl = reader.nextLine();
+
+        PackageMigration.packageDataMigration(couchbaseServerIp, bucketName, bucketPassword, ftpUrl);
         PackageMigration.print("Package data migration successfully completed");
         reader.close();
     }

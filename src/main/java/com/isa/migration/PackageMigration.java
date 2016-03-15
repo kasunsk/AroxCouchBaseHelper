@@ -13,7 +13,6 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Scanner;
 import java.util.regex.Pattern;
 
 /**
@@ -21,14 +20,22 @@ import java.util.regex.Pattern;
  */
 public class PackageMigration {
 
-    private static final String S3_BASE_URL = "https://s3-ap-southeast-1.amazonaws.com/";
+    private static final String S3_BASE_URL = "https://s3-ap-southeast-1.amazonaws.com/sas-hala-images";
     private static final String S3_BASE_URL_2 = "https://arox-files-prod.s3.amazonaws.com/";
-    private static final String NEW_BASE_URL = "http://10.20.3.104/";
+    private static final String S3_BASE_URL_3 = "https://s3-ap-southeast-1.amazonaws.com/sas-hala-images/amored/";
+
+    private static String newBaseUrl = "http://10.20.3.104/arox-files-dev/";
 
     private static final Logger log = LoggerFactory.getLogger(PackageMigration.class);
     private static CouchbaseClient couchbaseClient;
 
-    public static void packageDataMigration(String couchbaseServerIp, String bucketName, String bucketPassword) throws IOException {
+
+    public static void packageDataMigration(String couchbaseServerIp, String bucketName, String bucketPassword, String ftpUrl)
+            throws IOException {
+
+        if (ftpUrl != null) {
+            newBaseUrl = ftpUrl;
+        }
 
         CouchbaseTemplate couchbaseTemplate = constructCouhbaseTemplate(couchbaseServerIp, bucketName, bucketPassword);
         System.out.println();
@@ -39,11 +46,12 @@ public class PackageMigration {
 
             for (PackageDoc packageDoc : packageDocs) {
 
+                String tenantCode = getTenant(bucketName);
                 print("Updating package [code: #] [name: #]", packageDoc.getPackageCode(), packageDoc.getDescription());
-                updateMainImageUrl(packageDoc);
-                updateMoreDetaiUrl(packageDoc);
-                updateGalleryImageUrls(packageDoc);
-                //couchbaseTemplate.update(packageDoc);
+                updateMainImageUrl(packageDoc, tenantCode);
+                updateMoreDetailUrl(packageDoc, tenantCode);
+                updateGalleryImageUrls(packageDoc, tenantCode);
+                couchbaseTemplate.update(packageDoc);
                 System.out.println();
             }
         } else {
@@ -53,13 +61,19 @@ public class PackageMigration {
     }
 
 
+    private static String getTenant(String bucketName) {
+
+        return bucketName.replace("arox_", "").toLowerCase();
+    }
+
+
     private static void finalizeApplication() {
 
         couchbaseClient.shutdown();
     }
 
 
-    private static void updateGalleryImageUrls(PackageDoc packageDoc) {
+    private static void updateGalleryImageUrls(PackageDoc packageDoc, String tenantCode) {
 
         List<String> updatedGalleryImages = new ArrayList<>();
         List<String> galleryImages = packageDoc.getGallaryImages();
@@ -72,12 +86,14 @@ public class PackageMigration {
 
                 print("Gallery Image old url [#]", galleryImage);
 
-                if (isStartWith(galleryImage, S3_BASE_URL) || isStartWith(galleryImage, S3_BASE_URL_2)) {
+                if (isStartWith(galleryImage, S3_BASE_URL_3) || isStartWith(galleryImage, S3_BASE_URL) || isStartWith(galleryImage, S3_BASE_URL_2)) {
 
-                    if (isStartWith(galleryImage, S3_BASE_URL)) {
-                        newGalleryImageUrl = galleryImage.replace(S3_BASE_URL, NEW_BASE_URL);
+                    if (isStartWith(galleryImage, S3_BASE_URL_3)) {
+                        newGalleryImageUrl = galleryImage.replace(S3_BASE_URL_3, newBaseUrl + additionToUrl(tenantCode));
+                    } else if (isStartWith(galleryImage, S3_BASE_URL)) {
+                        newGalleryImageUrl = galleryImage.replace(S3_BASE_URL, newBaseUrl + addImageUrl(tenantCode));
                     } else {
-                        newGalleryImageUrl = galleryImage.replace(S3_BASE_URL_2, NEW_BASE_URL);
+                        newGalleryImageUrl = galleryImage.replace(S3_BASE_URL_2, newBaseUrl);
                     }
                     print("Gallery Image new url [#]", newGalleryImageUrl);
 
@@ -95,19 +111,22 @@ public class PackageMigration {
     }
 
 
-    private static void updateMoreDetaiUrl(PackageDoc packageDoc) {
+    private static void updateMoreDetailUrl(PackageDoc packageDoc, String tenantCode) {
 
         print("More detail old url [#]", packageDoc.getDetailedUrl());
         String detailedUrl = packageDoc.getDetailedUrl();
 
-        if (isStartWith(detailedUrl, S3_BASE_URL) || isStartWith(detailedUrl, S3_BASE_URL_2)) {
+        if (isStartWith(detailedUrl, S3_BASE_URL_3) || isStartWith(detailedUrl, S3_BASE_URL) || isStartWith(detailedUrl,
+                S3_BASE_URL_2)) {
 
             String newDetailedUrl;
 
-            if (isStartWith(detailedUrl, S3_BASE_URL)) {
-                newDetailedUrl = detailedUrl.replace(S3_BASE_URL, NEW_BASE_URL);
+            if (isStartWith(detailedUrl, S3_BASE_URL_3)) {
+                newDetailedUrl = detailedUrl.replace(S3_BASE_URL_3, newBaseUrl + additionToUrl(tenantCode));
+            } else if (isStartWith(detailedUrl, S3_BASE_URL)) {
+                newDetailedUrl = detailedUrl.replace(S3_BASE_URL, newBaseUrl + addImageUrl(tenantCode));
             } else {
-                newDetailedUrl = detailedUrl.replace(S3_BASE_URL_2, NEW_BASE_URL);
+                newDetailedUrl = detailedUrl.replace(S3_BASE_URL_2, newBaseUrl);
             }
             print("More detail new url [#]", newDetailedUrl);
             packageDoc.setDetailedUrl(newDetailedUrl);
@@ -117,24 +136,39 @@ public class PackageMigration {
     }
 
 
-    private static void updateMainImageUrl(PackageDoc packageDoc) {
+    private static void updateMainImageUrl(PackageDoc packageDoc, String tenantCode) {
 
         print("Main image old url [#]", packageDoc.getMainImage());
         String mainImage = packageDoc.getMainImage();
 
-        if (isStartWith(mainImage, S3_BASE_URL) || isStartWith(mainImage, S3_BASE_URL_2)) {
+        if (isStartWith(mainImage, S3_BASE_URL_3) || isStartWith(mainImage, S3_BASE_URL) || isStartWith(mainImage,
+                S3_BASE_URL_2)) {
             String newMainImageUrl;
 
-            if (isStartWith(mainImage, S3_BASE_URL)) {
-                newMainImageUrl = mainImage.replace(S3_BASE_URL, NEW_BASE_URL);
+            if (isStartWith(mainImage, S3_BASE_URL_3)) {
+                newMainImageUrl = mainImage.replace(S3_BASE_URL_3, newBaseUrl + additionToUrl(tenantCode));
+            } else if (isStartWith(mainImage, S3_BASE_URL)) {
+                newMainImageUrl = mainImage.replace(S3_BASE_URL, newBaseUrl + addImageUrl(tenantCode));
             } else {
-                newMainImageUrl = mainImage.replace(S3_BASE_URL_2, NEW_BASE_URL);
+                newMainImageUrl = mainImage.replace(S3_BASE_URL_2, newBaseUrl);
             }
             print("Main image new url " + newMainImageUrl);
             packageDoc.setMainImage(newMainImageUrl);
         } else {
             print("Main url Not Updated");
         }
+    }
+
+
+    private static String addImageUrl(String tenantCode) {
+
+        return tenantCode + "/images";
+    }
+
+
+    private static String additionToUrl(String tenant) {
+
+        return tenant + "/custom/";
     }
 
 
@@ -157,9 +191,10 @@ public class PackageMigration {
     }
 
 
-    private static CouchbaseTemplate constructCouhbaseTemplate(String couchbaseServerIp ,String bucketName, String password) throws IOException {
+    private static CouchbaseTemplate constructCouhbaseTemplate(String couchbaseServerIp, String bucketName, String password)
+            throws IOException {
 
-        URI uri = URI.create("http://"+ couchbaseServerIp +":8091/pools");
+        URI uri = URI.create("http://" + couchbaseServerIp + ":8091/pools");
         couchbaseClient = new CouchbaseClient(Arrays.asList(uri), bucketName, password);
         return new CouchbaseTemplate(couchbaseClient);
     }
